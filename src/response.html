@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>OpenAI Response</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css"
+    integrity="sha512-mIs9kKbaw6JZFfSuo+MovjU+Ntggfoj8RwAmJbVXQ5mkAX5LlgETQEweFPI18humSPHymTb5iikEOKWF7I8ncQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"
+    integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    @import url("https://fonts.googleapis.com/css?family=Raleway:400,400i,700");
+ 
+    body {
+      font-family: sans-serif;
+      background-color: #343541;
+      line-height: 1.25rem;
+    }
+
+    .question {
+      font-size: .875rem;
+      font-weight: bold;
+      margin-bottom: 1em;
+      background-color: #343541;
+      color: #ECECF1;
+    }
+
+    .answer {
+      font-size: .875rem;
+      margin-bottom: 1em;
+      background-color: #444654;
+      color: #D1D5DB;
+      border: 0 solid #d9d9e3;
+      border-radius: 1px;
+      box-sizing: border-box;
+    }
+
+    .chat-box-footer {
+      width: 100%;
+      padding: 20px 15px;
+      border-top: solid 1px #cfcfcf;
+      box-sizing: border-box;
+      display: flex;
+    }
+
+    #chat-input {
+      color: #2f2f2f;
+      font-family: Raleway, sans-serif;
+      font-size: 16px;
+      background-color: #d2d2d2;
+      width: 100%;
+      height: 40px;
+      max-height: 1500px;
+      border: none;
+      padding: 10px 15px;
+      resize: none;
+      box-sizing: border-box;
+      border-radius: 13px;
+      transition: 0.3s background-color;
+    }
+
+    #send {
+      background: none;
+      border: none;
+      margin-left: 10px;
+      padding: 5px;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+
+    .copy-div {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 30px;
+      background-color: #f1f1f1;
+      border-bottom: 1px solid #ddd;
+      padding: 5px;
+      box-sizing: border-box;
+    }
+
+    .copy-button {
+      float: right;
+      background-color: #343541;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 5px;
+      cursor: pointer;
+    }
+
+    .copy-button:hover {
+      background-color: #444654;
+    }
+
+    .delete {
+      background-color: transparent;
+      border: none;
+      box-shadow: none;
+      color: #fff;
+
+    }
+
+    .button-container {
+      margin-bottom: 20px;
+      text-align: right;
+    }
+
+    .delete-conversation {
+      text-align: right;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="button-container">
+    <button id="delete" class="delete"> 모든 대화 비우기
+      <svg style="width:24px;height:24px" viewBox="0 0 24 24">
+        <path fill="#006ae3" d="M2,21L23,12L2,3V10L17,12L2,14V21Z" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="chat-body"></div>
+
+  <div class="chat-box-footer">
+    <textarea id="chat-input" placeholder="Enter your message here..."></textarea>
+    <button id="send">
+      <svg style="width:24px;height:24px" viewBox="0 0 24 24">
+        <path fill="#006ae3" d="M2,21L23,12L2,3V10L17,12L2,14V21Z" />
+      </svg>
+    </button>
+  </div>
+</body>
+<script>
+  const chatInput = document.querySelector('#chat-input');
+  const typing = document.querySelector('#typing');
+  const send = document.querySelector('#send');
+
+  loadChatHistory();
+
+  // ----- EVENTS ----- //
+
+  document.querySelector('#delete').addEventListener('click', function () {
+    localStorage.clear();
+    location.reload();
+  });
+
+  chatInput.addEventListener('input', function () {
+    this.style.height = '0';
+    this.style.height = this.scrollHeight + 1 + 'px';
+  });
+
+  chatInput.addEventListener('keydown', async function (evt) {
+    if (evt.keyCode == 13 && !evt.shiftKey) {
+      evt.preventDefault();
+      await sendMessage('my', this);
+      chatInput.disabled = false;
+    }
+  });
+
+  send.addEventListener('click', async function (evt) {
+    evt.preventDefault();
+    await sendMessage('my', chatInput);
+  });
+
+  async function sendMessage(sender, input) {
+    send.disabled = true;
+    chatInput.disabled = true;
+
+    let questionStorage = JSON.parse(localStorage.getItem('question'));
+    let answerStorage = JSON.parse(localStorage.getItem('answer'));
+
+    if (questionStorage === null) {
+      questionStorage = [];
+    }
+    if (answerStorage === null) {
+      answerStorage = [];
+    }
+
+    const question = { role: "user", content: input.value.toString() };
+    questionStorage.push(question)
+    localStorage.setItem('question', JSON.stringify(questionStorage));
+    const bodyData = []
+    for(let i = 0; i < questionStorage.length; i++) {
+      bodyData.push(questionStorage[i])
+      if (answerStorage[i]) {
+        bodyData.push(answerStorage[i])
+      }
+    }
+
+    input.value = '현재 AI가 답변을 준비중입니다... 잠시만 기다려주세요.';
+    const response = await fetch('/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(bodyData)
+    }).then(response => {
+      if (response.ok) {
+        send.disabled = false;
+        chatInput.disabled = false;
+        return response.text();
+      }
+      throw new Error('Network response was not ok.');
+    })
+      .then(html => {
+        const { answer } = JSON.parse(html)
+        saveChatHistory(answer)
+
+        location.reload();
+      })
+      .catch(error => {
+        console.error('There was a problem with the fetch operation:', error);
+      });
+
+    input.value = '';
+  }
+
+  document.querySelectorAll('pre code').forEach(function (codeBlock) {
+    // Create copy button
+    const parent = codeBlock.parentElement;
+    if (parent.className === 'question') {
+      return;
+    }
+
+    const copyButton = document.createElement('button');
+    const copyDiv = document.createElement('div');
+    const codeBlockDiv = document.createElement('div');
+    if(!codeBlock.getAttribute('class')){
+      codeBlock.setAttribute('class', 'language-bash');
+    }
+
+    codeBlockDiv.className = 'code-block-div';
+    codeBlockDiv.appendChild(copyButton);
+    copyDiv.className = 'copy-div';
+
+    copyButton.className = 'copy-button';
+    copyButton.textContent = 'Copy';
+
+    // Append copy button to code block
+    codeBlock.parentNode.insertBefore(codeBlockDiv, codeBlock);
+
+    // Add copy event listener to copy button
+    copyButton.addEventListener('click', function () {
+      const code = codeBlock.innerText;
+      navigator.clipboard.writeText(code)
+        .then(function () {
+          copyButton.textContent = 'Code block copied to clipboard.';
+        })
+        .catch(function (err) {
+          copyButton.textContent = 'Failed to copy code block: ', + err
+        });
+    });
+  });
+
+  // 대화 내역을 저장하는 함수
+  function saveChatHistory(answer) {
+    // 로컬 스토리지에 chatHistory라는 키로 대화 내역을 저장합니다.    
+    let answerStorage = JSON.parse(localStorage.getItem('answer'));
+
+    if (answerStorage === null) {
+      answerStorage = [];
+    }
+    
+    answerStorage.push(answer);
+
+    localStorage.setItem('answer', JSON.stringify(answerStorage));
+  }
+
+  // 저장된 대화 내역을 불러오는 함수
+  function loadChatHistory() {
+    // 로컬 스토리지에서 chatHistory라는 키로 저장된 대화 내역을 불러옵니다.
+    let question = JSON.parse(localStorage.getItem('question'));
+    let answer = JSON.parse(localStorage.getItem('answer'));
+    // chatHistory가 null이 아니면, JSON.parse를 사용하여 객체로 변환합니다.
+    if (question !== null && answer !== null) {
+      console.log(question, answer)
+      showChatHistory(question, answer)
+      return { question, answer };
+    }
+    // chatHistory가 null이면 빈 배열을 반환합니다.
+    return [];
+  }
+
+  // 대화 내역을 화면에 보여주는 함수
+  function showChatHistory(question, answer) {
+    // chatHistory 배열을 순회하면서, 각각의 대화 내역을 화면에 추가합니다.
+    const chatBody = document.querySelector('.chat-body');
+    for (let i = 0; i < question.length; i++) {
+      const deleteCovnersation = document.createElement('div');
+      deleteCovnersation.className = 'delete-conversation';
+      chatBody.appendChild(deleteCovnersation);
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'delete';
+      
+      deleteButton.textContent = '해당 대화 삭제';
+      deleteButton.addEventListener('click', () => {
+        deleteChatHistory(i);
+      });
+      
+      deleteCovnersation.appendChild(deleteButton);
+      
+
+      const questionDiv = document.createElement('div');
+      questionDiv.className = 'question';
+      questionDiv.innerText = question[i].content;
+      chatBody.appendChild(questionDiv);
+
+      const answerDiv = document.createElement('div');
+      answerDiv.className = 'answer';
+      answerDiv.innerHTML = answer[i].content;
+      chatBody.appendChild(answerDiv);
+    }
+  }
+
+  function deleteChatHistory(index) {
+    let questionStorage = JSON.parse(localStorage.getItem('question'));
+    let answerStorage = JSON.parse(localStorage.getItem('answer'));
+
+    // 해당 인덱스의 대화 내역을 삭제합니다.
+    questionStorage.splice(index, 1);
+    answerStorage.splice(index, 1);
+
+    // 변경된 대화 내역을 다시 로컬 스토리지에 저장합니다.
+    localStorage.setItem('question', JSON.stringify(questionStorage));
+    localStorage.setItem('answer', JSON.stringify(answerStorage));
+
+    location.reload()
+  }
+
+</script>
+
+</html>
